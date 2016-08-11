@@ -47,6 +47,15 @@ def upload(request):
             current_uri = '%s://%s' % ('https' if request.is_secure() else 'http',
                              request.get_host())
             
+            #证书检查
+            cert,key = request.POST['certification'].split(':')
+            if cert not in ipasign.CERTS or key not in ipasign.CERTS[cert]:
+                return HttpResponse(json.dumps({'err':'wrong certification %s:%s'%(cert,key)}), content_type="application/json")
+            #描述文件检查
+			path_profile =join(ipasign.PROFILES_DIR, cert, request.POST['id'], request.POST['profile'])
+			if not exists(path_profile):
+				return HttpResponse(json.dumps({'err':'wrong profile path %s'%(path_profile)}), content_type="application/json")
+			
             #保存
             o.from_ip = get_client_ip(request)
             o.status = 'uploaded'
@@ -69,13 +78,15 @@ def upload(request):
             #签名.remove tgz  ext
             tmpapp = join(tmpdir, splitext(on)[0])
 #             cmd_sign = 'echo test > '+path_full
-            cert,key = request.POST['certification'].split(':')
-            cmd_sign = 'xcrun -sdk iphoneos PackageApplication -v %s -o %s --sign "%s" --embed "%s"' \
+            cmd_sign = 'xcrun -sdk iphoneos RePackageApplication -v %s -o %s --sign "%s" --embed "%s"' \
                 %(tmpapp, path_full, ipasign.CERTS[cert][key], join(ipasign.PROFILES_DIR, cert, request.POST['id'], request.POST['profile']))
+            if 'entitlements' in request.POST:
+                cmd_sign += ' --entitlements '+request.POST['entitlements'] 
             p = subprocess.Popen(cmd_sign, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             out, err = p.communicate()
             
             if len(err) > 0:
+                print(err, file=sys.stderr)
                 o.status = 'signfail'
                 o.save()
                 shutil.rmtree(tmpdir)
@@ -109,7 +120,7 @@ def upload(request):
                 result = {'err':'signed but not publish success',
                           'url':urlparse.urljoin(current_uri, join(settings.MEDIA_URL, o.signed.url))}
         else:
-            result = {"err":dict(form.errors)};
+            result = {'err':dict(form.errors)};
         return HttpResponse(json.dumps(result), content_type="application/json")
     else:
         form = UploadModelFileForm()

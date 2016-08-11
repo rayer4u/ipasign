@@ -5,10 +5,21 @@ import os,ipasign
 from django.db import models
 from django.dispatch import receiver
 from django.utils.translation import ugettext_lazy as _
+from django.core.files.storage import FileSystemStorage
 from uuid import uuid4
 from contenttyperestrictedfilefield import ContentTypeRestrictedFileField
 
+class MediaFileSystemStorage(FileSystemStorage):
+    def get_available_name(self, name):
+        return name
 
+    def _save(self, name, content):
+        if self.exists(name):
+            # if the file exists, do not call the superclasses _save method
+            return name
+        # if the file is new, DO call it
+        return super(MediaFileSystemStorage, self)._save(name, content)
+    
 def random_path(path):
     def wrapper(instance, filename):
         ext = ".".join(filename.split('.')[1:])
@@ -22,15 +33,18 @@ def random_path(path):
         return os.path.join(path, filename)
     return wrapper
 
-def icon_path(path):
+def icon_path(field_name, path):
     def wrapper(instance, filename):
+        basename, ext = os.path.splitext(filename)
         # get filename
         if instance.pk:
-            ext = filename.split('.')[-1]
             filename = '{0}.{1}'.format(instance.pk, ext)
         else:
             # set filename with path
-            filename = os.path.join(os.path.dirname(instance.path), filename)
+            md5 = hashlib.md5()
+            for chunk in getattr(instance, field_name).chunks():
+                md5.update(chunk)
+            filename = os.path.join(os.path.dirname(instance.path), md5.hexdigest() + ext.lower())
         # return the whole path to the file
         return os.path.join(path, filename)
     return wrapper
@@ -43,10 +57,12 @@ class UpFile(models.Model):
                                              upload_to=random_path(ipasign.UPLOAD_DIR))  #上传的文件
     icons   = ContentTypeRestrictedFileField(content_types=['image/png'],
                                              max_upload_size=2621440,
-                                             upload_to=icon_path(ipasign.PACKAGE_DIR))  #小图标
+                                             upload_to=icon_path('icons', ipasign.PACKAGE_DIR),
+                                             storage=MediaFileSystemStorage())  #小图标
     iconb   = ContentTypeRestrictedFileField(content_types=['image/png'],
                                              max_upload_size=2621440,
-                                             upload_to=icon_path(ipasign.PACKAGE_DIR))  #大图标
+                                             upload_to=icon_path('iconb', ipasign.PACKAGE_DIR),
+                                             storage=MediaFileSystemStorage())  #大图标
     signed  = models.FileField(upload_to=ipasign.PACKAGE_DIR)   #签名好的文件
     status  = models.CharField(max_length=10, blank=True)       #状态，uploaded，。。。
     user    = models.CharField(max_length=10, blank=False)      #上传的svn用户名

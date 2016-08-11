@@ -8,7 +8,7 @@ PACKAGE_DIR="ipasign"
 UPLOAD_DIR="upload"
 PROFILES_DIR=join(settings.MEDIA_ROOT, "profiles")
 CERTS={}
-PUBLISH_URL="https://192.168.0.33/publish/ipapub/" # "http://127.0.0.1:8000/ipapub/"
+PUBLISH_URL="http://127.0.0.1:8000/ipapub/"
 
 for root, dirs, files in os.walk(PROFILES_DIR):
     if root == PROFILES_DIR:

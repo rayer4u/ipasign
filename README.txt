@@ -1,2 +1,3 @@
 ios的应用自动签名工具。功能相当于ipapub的签名部分，签名好后把的文件上传到ipapub完成全部功能
+setting里需要配置MEDIA_URL, MEDIA_ROOT
 PUBLISH_URL在__init__.py里定义
